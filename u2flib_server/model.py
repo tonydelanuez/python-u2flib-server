@@ -26,6 +26,10 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 
+from u2flib_server.exceptions import (U2FClientDataValidationError,
+                                      U2FRegisterRequestError,
+                                      U2FSignRequestError,
+                                      U2FSignatureError)
 from u2flib_server.utils import websafe_encode, websafe_decode, sha_256
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature
@@ -98,16 +102,16 @@ def _fix_cert(der):  # Some early certs have UNUSED BITS incorrectly set.
 
 def _validate_client_data(client_data, challenge, typ, valid_facets):
     if client_data.typ != typ:
-        raise ValueError("Wrong type! Was: %r, expecting: %r" % (
-            client_data.typ, typ))
+        raise U2FClientDataValidationError("Wrong type! Was: %r, expecting: %r" % (
+            client_data.typ, typ), 'type')   
 
     if challenge != client_data.challenge:
-        raise ValueError("Wrong challenge! Was: %r, expecting: %r" % (
-            client_data.challenge, challenge))
+        raise U2FClientDataValidationError("Wrong challenge! Was: %r, expecting: %r" % (
+            client_data.challenge, challenge), 'challenge')
 
     if valid_facets is not None and client_data.origin not in valid_facets:
-        raise ValueError("Invalid facet! Was: %r, expecting one of: %r" % (
-            client_data.origin, valid_facets))
+        raise U2FClientDataValidationError("Invalid facet! Was: %r, expecting one of: %r" % (
+            client_data.origin, valid_facets), 'facet')
 
 
 @unique
@@ -182,7 +186,7 @@ class RegistrationData(object):
         try:
             verifier.verify()
         except InvalidSignature:
-            raise ValueError('Attestation signature is invalid')
+            raise U2FSignatureError('Attestation signature is invalid')
 
     @property
     def bytes(self):
@@ -215,7 +219,7 @@ class SignatureData(object):
         try:
             verifier.verify()
         except InvalidSignature:
-            raise ValueError('U2F signature is invalid')
+            raise U2FSignatureError('U2F signature is invalid')
 
     @property
     def bytes(self):
@@ -388,7 +392,7 @@ class U2fRegisterRequest(JSONDict, WithAppId, WithRegisteredKeys):
         for req in self.registerRequests:
             if req.version == version:
                 return req
-        raise ValueError('No RegisterRequest found for version: %s' % version)
+        raise U2FRegisterRequestError('No RegisterRequest found for version: %s' % version)
 
     @property
     def data_for_client(self):
@@ -440,7 +444,7 @@ class U2fSignRequest(JSONDict, WithAppId, WithChallenge, WithRegisteredKeys):
     def __init__(self, *args, **kwargs):
         super(U2fSignRequest, self).__init__(*args, **kwargs)
         if len(self.registeredKeys) == 0:
-            raise ValueError('Must have at least one RegisteredKey')
+            raise U2FSignRequestError('Must have at least one RegisteredKey')
 
     @property
     def data_for_client(self):
